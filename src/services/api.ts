@@ -1,4 +1,3 @@
-
 // API service for handling code block data
 import { codeBlocks } from '../mockServer/mockData';
 
@@ -34,4 +33,16 @@ export const getCodeBlockById = async (id: string): Promise<CodeBlock> => {
       }
     }, 300);
   });
+};
+
+// For simulation purposes, we're keeping these functions to understand how the socket server works
+// In a production environment, these would make actual API calls to the server
+export const joinCodeSession = (codeBlockId: string, socketId: string) => {
+  console.log(`User ${socketId} joining code session for block ${codeBlockId}`);
+  // In a real implementation, this would call the server
+};
+
+export const leaveCodeSession = (codeBlockId: string, socketId: string) => {
+  console.log(`User ${socketId} leaving code session for block ${codeBlockId}`);
+  // In a real implementation, this would call the server
 };

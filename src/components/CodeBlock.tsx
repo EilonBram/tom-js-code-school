@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { useSocket } from '../context/SocketContext';
+import { useSocket, simulateJoinRoom, simulateLeaveRoom, simulateCodeChange } from '../context/SocketContext';
 import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,53 +18,86 @@ interface CodeBlockProps {
 }
 
 const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
-  const { socket, isMentor, studentCount } = useSocket();
+  const { socket, isMentor, studentCount, socketId } = useSocket();
   const [code, setCode] = useState(codeBlockData.initialCode);
   const [solved, setSolved] = useState(false);
+  const SIMULATION_MODE = true;
   
   useEffect(() => {
-    if (!socket) return;
-    
-    // Join the room for this code block
-    socket.emit('join_room', codeBlockData.id);
-    
-    // Listen for code changes from other clients
-    socket.on('code_updated', (updatedCode: string) => {
-      setCode(updatedCode);
-      checkSolution(updatedCode);
-    });
-    
-    // Listen for mentor leaving
-    socket.on('mentor_left', () => {
-      toast.error("The mentor has left the session");
-      // Redirect to lobby
-      window.location.href = '/';
-    });
-    
-    // Clean up
-    return () => {
-      socket.off('code_updated');
-      socket.off('mentor_left');
-      socket.emit('leave_room', codeBlockData.id);
-    };
-  }, [socket, codeBlockData.id]);
+    if (SIMULATION_MODE) {
+      // Check if there's any saved code for this block
+      const savedCode = localStorage.getItem(`codeblock_${codeBlockData.id}`);
+      if (savedCode) {
+        setCode(savedCode);
+        checkSolution(savedCode);
+      }
+      
+      // Join the room (simulation)
+      simulateJoinRoom(codeBlockData.id);
+      
+      // Listen for code changes from other clients
+      const handleCodeUpdate = (event: any) => {
+        if (event.detail.roomId === codeBlockData.id) {
+          setCode(event.detail.code);
+          checkSolution(event.detail.code);
+        }
+      };
+      
+      window.addEventListener('code_updated', handleCodeUpdate);
+      
+      // Clean up
+      return () => {
+        window.removeEventListener('code_updated', handleCodeUpdate);
+        simulateLeaveRoom(codeBlockData.id);
+      };
+    } else if (socket) {
+      // Real socket implementation
+      // Join the room for this code block
+      socket.emit('join_room', codeBlockData.id);
+      
+      // Listen for code changes from other clients
+      socket.on('code_updated', (updatedCode: string) => {
+        setCode(updatedCode);
+        checkSolution(updatedCode);
+      });
+      
+      // Listen for mentor leaving
+      socket.on('mentor_left', () => {
+        toast.error("The mentor has left the session");
+        // Redirect to lobby
+        window.location.href = '/';
+      });
+      
+      // Clean up
+      return () => {
+        socket.off('code_updated');
+        socket.off('mentor_left');
+        socket.emit('leave_room', codeBlockData.id);
+      };
+    }
+  }, [socket, codeBlockData.id, SIMULATION_MODE]);
   
   const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newCode = e.target.value;
     setCode(newCode);
     
-    // Emit code change event
-    socket?.emit('code_change', {
-      room: codeBlockData.id,
-      code: newCode
-    });
+    if (SIMULATION_MODE) {
+      // Simulate code change event
+      simulateCodeChange(codeBlockData.id, newCode);
+    } else {
+      // Emit code change event to real socket
+      socket?.emit('code_change', {
+        room: codeBlockData.id,
+        code: newCode
+      });
+    }
     
-    checkSolution(newCode);
+    // Don't automatically check solution on every change
   };
   
-  const checkSolution = (code: string) => {
+  const checkSolution = (codeToCheck: string) => {
     // Compare with the solution
-    if (code.trim() === codeBlockData.solution.trim()) {
+    if (codeToCheck.trim() === codeBlockData.solution.trim()) {
       setSolved(true);
       toast.success("Congratulations! You've solved the code block!");
     } else {
