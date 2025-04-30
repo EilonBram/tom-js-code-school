@@ -2,8 +2,17 @@
 // API service for handling code block data
 import { codeBlocks } from '../mockServer/mockData';
 
+// Define the CodeBlock type
+export interface CodeBlock {
+  id: string;
+  title: string;
+  description: string;
+  initialCode: string;
+  solution: string;
+}
+
 // Mock implementation that returns the data directly without HTTP requests
-export const getCodeBlocks = async () => {
+export const getCodeBlocks = async (): Promise<CodeBlock[]> => {
   // Simulate network delay
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -13,7 +22,7 @@ export const getCodeBlocks = async () => {
 };
 
 // Fetch a specific code block by ID
-export const getCodeBlockById = async (id: string) => {
+export const getCodeBlockById = async (id: string): Promise<CodeBlock> => {
   // Simulate network delay
   return new Promise((resolve, reject) => {
     setTimeout(() => {

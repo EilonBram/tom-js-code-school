@@ -1,6 +1,8 @@
 
+import { CodeBlock } from '../services/api';
+
 // Mock data for code blocks
-export const codeBlocks = [
+export const codeBlocks: CodeBlock[] = [
   {
     id: '1',
     title: 'Async/Await Example',
