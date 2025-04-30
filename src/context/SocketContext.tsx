@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/sonner';
@@ -65,9 +64,16 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log('[Simulation] Role assigned: student');
         toast.success("You are a student (editor)");
       }
+      
+      // Set up a polling mechanism to keep student count updated
+      const pollInterval = setInterval(() => {
+        const currentCount = parseInt(localStorage.getItem('studentCount') || '0');
+        setStudentCount(currentCount);
+      }, 1000);
 
       // No cleanup needed for simulation
       return () => {
+        clearInterval(pollInterval);
         console.log('[Simulation] Disconnecting simulated socket');
         // Decrease student count if we're a student
         if (!isMentor) {
@@ -130,22 +136,20 @@ export const useSocket = () => useContext(SocketContext);
 // Helper functions for simulation mode
 export const simulateJoinRoom = (roomId: string) => {
   console.log(`[Simulation] Joining room ${roomId}`);
-  // Update student count in localStorage
-  if (!localStorage.getItem('isMentor')) {
-    const currentCount = parseInt(localStorage.getItem('studentCount') || '0');
-    localStorage.setItem('studentCount', (currentCount + 1).toString());
-  }
+  // We don't update student count here as it's handled in the SocketProvider
+  
+  // Broadcast a join event to other tabs
+  const event = new CustomEvent('student_joined', { detail: { roomId } });
+  window.dispatchEvent(event);
 };
 
 export const simulateLeaveRoom = (roomId: string) => {
   console.log(`[Simulation] Leaving room ${roomId}`);
-  // Update student count in localStorage
-  if (!localStorage.getItem('isMentor')) {
-    const currentCount = parseInt(localStorage.getItem('studentCount') || '0');
-    if (currentCount > 0) {
-      localStorage.setItem('studentCount', (currentCount - 1).toString());
-    }
-  }
+  // We don't update student count here as it's handled in the SocketProvider
+  
+  // Broadcast a leave event to other tabs
+  const event = new CustomEvent('student_left', { detail: { roomId } });
+  window.dispatchEvent(event);
 };
 
 export const simulateCodeChange = (roomId: string, code: string) => {

@@ -45,9 +45,19 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
       
       window.addEventListener('code_updated', handleCodeUpdate);
       
+      // Add a polling mechanism to check for code updates
+      const pollInterval = setInterval(() => {
+        const currentSavedCode = localStorage.getItem(`codeblock_${codeBlockData.id}`);
+        if (currentSavedCode && currentSavedCode !== code) {
+          setCode(currentSavedCode);
+          checkSolution(currentSavedCode);
+        }
+      }, 1000); // Poll every second
+      
       // Clean up
       return () => {
         window.removeEventListener('code_updated', handleCodeUpdate);
+        clearInterval(pollInterval);
         simulateLeaveRoom(codeBlockData.id);
       };
     } else if (socket) {
@@ -84,6 +94,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
     if (SIMULATION_MODE) {
       // Simulate code change event
       simulateCodeChange(codeBlockData.id, newCode);
+      
+      // Also update localStorage directly to ensure it's properly saved
+      localStorage.setItem(`codeblock_${codeBlockData.id}`, newCode);
     } else {
       // Emit code change event to real socket
       socket?.emit('code_change', {
@@ -91,8 +104,6 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
         code: newCode
       });
     }
-    
-    // Don't automatically check solution on every change
   };
   
   const checkSolution = (codeToCheck: string) => {
