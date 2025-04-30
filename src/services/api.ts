@@ -1,33 +1,28 @@
 
 // API service for handling code block data
+import { codeBlocks } from '../mockServer/mockData';
 
-// The base URL for our API
-const API_URL = 'http://localhost:3001/api';
-
-// Fetch all code blocks for the lobby
+// Mock implementation that returns the data directly without HTTP requests
 export const getCodeBlocks = async () => {
-  try {
-    const response = await fetch(`${API_URL}/codeblocks`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching code blocks:', error);
-    throw error;
-  }
+  // Simulate network delay
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(codeBlocks);
+    }, 300);
+  });
 };
 
 // Fetch a specific code block by ID
 export const getCodeBlockById = async (id: string) => {
-  try {
-    const response = await fetch(`${API_URL}/codeblocks/${id}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error(`Error fetching code block with ID ${id}:`, error);
-    throw error;
-  }
+  // Simulate network delay
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const codeBlock = codeBlocks.find(block => block.id === id);
+      if (codeBlock) {
+        resolve(codeBlock);
+      } else {
+        reject(new Error(`Code block with ID ${id} not found`));
+      }
+    }, 300);
+  });
 };
