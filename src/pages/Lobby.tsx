@@ -22,6 +22,21 @@ const Lobby: React.FC = () => {
     // Dismiss any active toast notifications when entering the lobby
     toast.dismiss();
     
+    // Clear all code block data when entering the lobby
+    const clearCodeBlockData = () => {
+      // Get all localStorage keys related to code blocks
+      const codeBlockKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith('codeblock_')
+      );
+      
+      // Remove each code block key
+      codeBlockKeys.forEach(key => {
+        localStorage.removeItem(key);
+      });
+    };
+    
+    clearCodeBlockData();
+    
     const fetchCodeBlocks = async () => {
       try {
         const data = await getCodeBlocks();

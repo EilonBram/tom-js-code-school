@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useNavigate } from 'react-router-dom';
 
 interface CodeBlockProps {
   codeBlockData: {
@@ -23,6 +24,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
   const [solved, setSolved] = useState(false);
   const [toastShown, setToastShown] = useState(false);
   const SIMULATION_MODE = true;
+  const navigate = useNavigate();
   
   useEffect(() => {
     if (SIMULATION_MODE) {
@@ -44,7 +46,19 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
         }
       };
       
+      // Listen for mentor leaving
+      const handleMentorLeft = () => {
+        if (!isMentor) {
+          // Clear all code and solved status for this block
+          localStorage.removeItem(`codeblock_${codeBlockData.id}`);
+          localStorage.removeItem(`codeblock_${codeBlockData.id}_solved`);
+          toast.error("The mentor has left the session");
+          navigate('/');
+        }
+      };
+      
       window.addEventListener('code_updated', handleCodeUpdate);
+      window.addEventListener('mentor_left', handleMentorLeft);
       
       // Add a polling mechanism to check for code updates
       const pollInterval = setInterval(() => {
@@ -58,6 +72,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
       // Clean up
       return () => {
         window.removeEventListener('code_updated', handleCodeUpdate);
+        window.removeEventListener('mentor_left', handleMentorLeft);
         clearInterval(pollInterval);
         simulateLeaveRoom(codeBlockData.id);
         
@@ -77,9 +92,11 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
       
       // Listen for mentor leaving
       socket.on('mentor_left', () => {
+        // Clear all code and solved status for this block
+        localStorage.removeItem(`codeblock_${codeBlockData.id}`);
+        localStorage.removeItem(`codeblock_${codeBlockData.id}_solved`);
         toast.error("The mentor has left the session");
-        // Redirect to lobby
-        window.location.href = '/';
+        navigate('/');
       });
       
       // Clean up
@@ -92,7 +109,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
         toast.dismiss();
       };
     }
-  }, [socket, codeBlockData.id, SIMULATION_MODE]);
+  }, [socket, codeBlockData.id, SIMULATION_MODE, isMentor, navigate]);
   
   const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newCode = e.target.value;

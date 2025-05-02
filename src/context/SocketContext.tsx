@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/sonner';
@@ -71,9 +72,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setStudentCount(currentCount);
       }, 1000);
 
+      // Listen for mentor leaving
+      const handleMentorLeft = (event: Event) => {
+        if (!isMentor) {
+          // If we're a student, redirect to lobby and clear stored code
+          const allCodeBlockIds = Object.keys(localStorage).filter(key => key.startsWith('codeblock_'));
+          allCodeBlockIds.forEach(key => localStorage.removeItem(key));
+          
+          toast.error("The mentor has left the session");
+          window.location.href = '/';
+        }
+      };
+
+      window.addEventListener('mentor_left', handleMentorLeft);
+
       // No cleanup needed for simulation
       return () => {
         clearInterval(pollInterval);
+        window.removeEventListener('mentor_left', handleMentorLeft);
         console.log('[Simulation] Disconnecting simulated socket');
         // Decrease student count if we're a student
         if (!isMentor) {
@@ -114,6 +130,17 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setStudentCount(count);
       });
 
+      socketInstance.on('mentor_left', () => {
+        // If we're a student, redirect to lobby and clear stored code
+        if (!isMentor) {
+          const allCodeBlockIds = Object.keys(localStorage).filter(key => key.startsWith('codeblock_'));
+          allCodeBlockIds.forEach(key => localStorage.removeItem(key));
+          
+          toast.error("The mentor has left the session");
+          window.location.href = '/';
+        }
+      });
+
       setSocket(socketInstance);
 
       // Clean up on unmount
@@ -121,7 +148,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socketInstance.disconnect();
       };
     }
-  }, []);
+  }, [isMentor]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected, isMentor, studentCount, socketId }}>
@@ -145,7 +172,16 @@ export const simulateJoinRoom = (roomId: string) => {
 
 export const simulateLeaveRoom = (roomId: string) => {
   console.log(`[Simulation] Leaving room ${roomId}`);
-  // We don't update student count here as it's handled in the SocketProvider
+  
+  // Check if the user is a mentor
+  const isMentor = localStorage.getItem('isMentor') === 'true';
+  
+  if (isMentor) {
+    console.log('[Simulation] Mentor leaving, notifying students');
+    // Broadcast a mentor left event to all tabs (students)
+    const mentorLeftEvent = new Event('mentor_left');
+    window.dispatchEvent(mentorLeftEvent);
+  }
   
   // Broadcast a leave event to other tabs
   const event = new CustomEvent('student_left', { detail: { roomId } });
