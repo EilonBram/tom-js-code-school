@@ -21,6 +21,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
   const { socket, isMentor, studentCount, socketId } = useSocket();
   const [code, setCode] = useState(codeBlockData.initialCode);
   const [solved, setSolved] = useState(false);
+  const [toastShown, setToastShown] = useState(false);
   const SIMULATION_MODE = true;
   
   useEffect(() => {
@@ -29,7 +30,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
       const savedCode = localStorage.getItem(`codeblock_${codeBlockData.id}`);
       if (savedCode) {
         setCode(savedCode);
-        checkSolution(savedCode);
+        checkSolution(savedCode, false); // Check solution but don't show toast
       }
       
       // Join the room (simulation)
@@ -39,7 +40,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
       const handleCodeUpdate = (event: any) => {
         if (event.detail.roomId === codeBlockData.id) {
           setCode(event.detail.code);
-          checkSolution(event.detail.code);
+          checkSolution(event.detail.code, false); // Check solution but don't show toast
         }
       };
       
@@ -50,7 +51,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
         const currentSavedCode = localStorage.getItem(`codeblock_${codeBlockData.id}`);
         if (currentSavedCode && currentSavedCode !== code) {
           setCode(currentSavedCode);
-          checkSolution(currentSavedCode);
+          checkSolution(currentSavedCode, false); // Check solution but don't show toast
         }
       }, 1000); // Poll every second
       
@@ -59,6 +60,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
         window.removeEventListener('code_updated', handleCodeUpdate);
         clearInterval(pollInterval);
         simulateLeaveRoom(codeBlockData.id);
+        
+        // Clear any toast when leaving the component
+        toast.dismiss();
       };
     } else if (socket) {
       // Real socket implementation
@@ -68,7 +72,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
       // Listen for code changes from other clients
       socket.on('code_updated', (updatedCode: string) => {
         setCode(updatedCode);
-        checkSolution(updatedCode);
+        checkSolution(updatedCode, false); // Check solution but don't show toast
       });
       
       // Listen for mentor leaving
@@ -83,6 +87,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
         socket.off('code_updated');
         socket.off('mentor_left');
         socket.emit('leave_room', codeBlockData.id);
+        
+        // Clear any toast when leaving the component
+        toast.dismiss();
       };
     }
   }, [socket, codeBlockData.id, SIMULATION_MODE]);
@@ -106,15 +113,34 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
     }
   };
   
-  const checkSolution = (codeToCheck: string) => {
+  const checkSolution = (codeToCheck: string, showToast: boolean = true) => {
     // Compare with the solution
-    if (codeToCheck.trim() === codeBlockData.solution.trim()) {
+    const isCorrect = codeToCheck.trim() === codeBlockData.solution.trim();
+    
+    if (isCorrect) {
       setSolved(true);
-      toast.success("Congratulations! You've solved the code block!");
+      
+      // Only show toast if explicitly requested and it hasn't been shown yet
+      if (showToast && !toastShown) {
+        toast.success("Congratulations! You've solved the code block!");
+        setToastShown(true);
+        
+        // Save the solved state to localStorage
+        localStorage.setItem(`codeblock_${codeBlockData.id}_solved`, 'true');
+      }
     } else {
       setSolved(false);
     }
   };
+  
+  // Check for saved solved state on initial load
+  useEffect(() => {
+    const solvedState = localStorage.getItem(`codeblock_${codeBlockData.id}_solved`);
+    if (solvedState === 'true') {
+      setSolved(true);
+      setToastShown(true);
+    }
+  }, [codeBlockData.id]);
   
   return (
     <Card className="w-full max-w-4xl mx-auto shadow-lg">
@@ -142,7 +168,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
                 value={code}
                 onChange={handleCodeChange}
               />
-              <Button onClick={() => checkSolution(code)}>Check Solution</Button>
+              <Button onClick={() => checkSolution(code, true)}>Check Solution</Button>
             </div>
           )}
           {solved && (
