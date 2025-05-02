@@ -1,9 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { getCodeBlocks } from '../services/api';
 import CodeBlockCard from '../components/CodeBlockCard';
 import { useToast } from "@/components/ui/use-toast";
 import { toast } from "@/components/ui/sonner";
+import { useSocket } from '../context/SocketContext';
 
 interface CodeBlock {
   id: string;
@@ -17,10 +17,14 @@ const Lobby: React.FC = () => {
   const [codeBlocks, setCodeBlocks] = useState<CodeBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast: toastHook } = useToast();
+  const { resetSimulation } = useSocket();
 
   useEffect(() => {
     // Dismiss any active toast notifications when entering the lobby
     toast.dismiss();
+    
+    // Reset the simulation state to ensure proper role assignment
+    resetSimulation();
     
     // Clear all code block data when entering the lobby
     const clearCodeBlockData = () => {
@@ -54,7 +58,7 @@ const Lobby: React.FC = () => {
     };
 
     fetchCodeBlocks();
-  }, [toastHook]);
+  }, [toastHook, resetSimulation]);
 
   if (loading) {
     return (

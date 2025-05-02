@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/sonner';
@@ -10,6 +9,7 @@ interface SocketContextType {
   isMentor: boolean;
   studentCount: number;
   socketId: string | null;
+  resetSimulation: () => void; // New method to reset simulation state
 }
 
 // Create the context with default values
@@ -19,6 +19,7 @@ const SocketContext = createContext<SocketContextType>({
   isMentor: false,
   studentCount: 0,
   socketId: null,
+  resetSimulation: () => {}, // Default empty function
 });
 
 // The server URL - for production, this would be your deployed backend
@@ -34,37 +35,64 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isMentor, setIsMentor] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
   const [socketId, setSocketId] = useState<string | null>(null);
+  const [simulationInitialized, setSimulationInitialized] = useState(false);
+
+  // Function to reset the simulation state
+  const resetSimulation = () => {
+    // Clear mentor and student count data from localStorage
+    localStorage.removeItem('isMentor');
+    localStorage.setItem('studentCount', '0');
+    
+    // Reset state
+    setIsMentor(false);
+    setStudentCount(0);
+    setSimulationInitialized(false);
+    
+    console.log('[Simulation] Simulation reset');
+    
+    // Re-initialize the simulation
+    initializeSimulation();
+  };
+  
+  // Function to initialize the simulation
+  const initializeSimulation = () => {
+    if (simulationInitialized) return;
+    
+    console.log('[Simulation] Creating simulated socket connection');
+    setIsConnected(true);
+    
+    // Generate a random socket ID
+    const simulatedSocketId = `simulated-${Math.random().toString(36).substring(2, 9)}`;
+    setSocketId(simulatedSocketId);
+
+    // Check localStorage to see if we're the first visitor (mentor)
+    const existingMentor = localStorage.getItem('isMentor');
+    if (!existingMentor) {
+      // First visitor becomes mentor
+      localStorage.setItem('isMentor', 'true');
+      setIsMentor(true);
+      console.log('[Simulation] Role assigned: mentor');
+      toast.success("You are the mentor (view only)");
+    } else {
+      // Subsequent visitors are students
+      setIsMentor(false);
+      
+      // Increment student count in localStorage
+      const currentCount = parseInt(localStorage.getItem('studentCount') || '0');
+      localStorage.setItem('studentCount', (currentCount + 1).toString());
+      setStudentCount(currentCount + 1);
+      
+      console.log('[Simulation] Role assigned: student');
+      toast.success("You are a student (editor)");
+    }
+    
+    setSimulationInitialized(true);
+  };
 
   useEffect(() => {
     if (SIMULATION_MODE) {
-      // Simulation mode - create a fake socket experience
-      console.log('[Simulation] Creating simulated socket connection');
-      setIsConnected(true);
-      
-      // Generate a random socket ID
-      const simulatedSocketId = `simulated-${Math.random().toString(36).substring(2, 9)}`;
-      setSocketId(simulatedSocketId);
-
-      // Check localStorage to see if we're the first visitor (mentor)
-      const existingMentor = localStorage.getItem('isMentor');
-      if (!existingMentor) {
-        // First visitor becomes mentor
-        localStorage.setItem('isMentor', 'true');
-        setIsMentor(true);
-        console.log('[Simulation] Role assigned: mentor');
-        toast.success("You are the mentor (view only)");
-      } else {
-        // Subsequent visitors are students
-        setIsMentor(false);
-        
-        // Increment student count in localStorage
-        const currentCount = parseInt(localStorage.getItem('studentCount') || '0');
-        localStorage.setItem('studentCount', (currentCount + 1).toString());
-        setStudentCount(currentCount + 1);
-        
-        console.log('[Simulation] Role assigned: student');
-        toast.success("You are a student (editor)");
-      }
+      // Initialize the simulation
+      initializeSimulation();
       
       // Set up a polling mechanism to keep student count updated
       const pollInterval = setInterval(() => {
@@ -151,7 +179,14 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [isMentor]);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, isMentor, studentCount, socketId }}>
+    <SocketContext.Provider value={{ 
+      socket, 
+      isConnected, 
+      isMentor, 
+      studentCount, 
+      socketId,
+      resetSimulation 
+    }}>
       {children}
     </SocketContext.Provider>
   );
@@ -181,6 +216,9 @@ export const simulateLeaveRoom = (roomId: string) => {
     // Broadcast a mentor left event to all tabs (students)
     const mentorLeftEvent = new Event('mentor_left');
     window.dispatchEvent(mentorLeftEvent);
+    
+    // Clear the mentor flag
+    localStorage.removeItem('isMentor');
   }
   
   // Broadcast a leave event to other tabs
