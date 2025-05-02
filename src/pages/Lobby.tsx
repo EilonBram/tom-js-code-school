@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { getCodeBlocks } from '../services/api';
 import CodeBlockCard from '../components/CodeBlockCard';
@@ -23,23 +24,8 @@ const Lobby: React.FC = () => {
     // Dismiss any active toast notifications when entering the lobby
     toast.dismiss();
     
-    // Reset the simulation state to ensure proper role assignment
+    // Reset the simulation state completely to ensure proper role assignment
     resetSimulation();
-    
-    // Clear all code block data when entering the lobby
-    const clearCodeBlockData = () => {
-      // Get all localStorage keys related to code blocks
-      const codeBlockKeys = Object.keys(localStorage).filter(key => 
-        key.startsWith('codeblock_')
-      );
-      
-      // Remove each code block key
-      codeBlockKeys.forEach(key => {
-        localStorage.removeItem(key);
-      });
-    };
-    
-    clearCodeBlockData();
     
     const fetchCodeBlocks = async () => {
       try {

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@/components/ui/sonner';
@@ -39,19 +40,28 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Function to reset the simulation state
   const resetSimulation = () => {
-    // Clear mentor and student count data from localStorage
-    localStorage.removeItem('isMentor');
-    localStorage.setItem('studentCount', '0');
+    console.log('[Simulation] Simulation reset');
     
-    // Reset state
+    // Completely clear localStorage of all mentor and simulation data
+    localStorage.removeItem('isMentor');
+    localStorage.removeItem('studentCount');
+    
+    // Clear any code block data
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('codeblock_')) {
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Reset state variables
     setIsMentor(false);
     setStudentCount(0);
     setSimulationInitialized(false);
     
-    console.log('[Simulation] Simulation reset');
-    
-    // Re-initialize the simulation
-    initializeSimulation();
+    // Force simulation re-initialization on next render
+    setTimeout(() => {
+      initializeSimulation();
+    }, 0);
   };
   
   // Function to initialize the simulation
@@ -67,6 +77,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Check localStorage to see if we're the first visitor (mentor)
     const existingMentor = localStorage.getItem('isMentor');
+    
     if (!existingMentor) {
       // First visitor becomes mentor
       localStorage.setItem('isMentor', 'true');
