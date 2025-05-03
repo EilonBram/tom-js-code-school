@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { getCodeBlocks } from '../services/api';
 import CodeBlockCard from '../components/CodeBlockCard';
 import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/components/ui/sonner";
+import { useSocket } from '../context/SocketContext';
 
 interface CodeBlock {
   id: string;
@@ -15,9 +17,16 @@ interface CodeBlock {
 const Lobby: React.FC = () => {
   const [codeBlocks, setCodeBlocks] = useState<CodeBlock[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+  const { toast: toastHook } = useToast();
+  const { resetSimulation } = useSocket();
 
   useEffect(() => {
+    // Dismiss any active toast notifications when entering the lobby
+    toast.dismiss();
+    
+    // Reset the simulation state completely to ensure proper role assignment
+    resetSimulation();
+    
     const fetchCodeBlocks = async () => {
       try {
         const data = await getCodeBlocks();
@@ -25,7 +34,7 @@ const Lobby: React.FC = () => {
         setLoading(false);
       } catch (error) {
         console.error('Failed to fetch code blocks:', error);
-        toast({
+        toastHook({
           title: "Error",
           description: "Failed to load code blocks. Please try again later.",
           variant: "destructive",
@@ -35,7 +44,7 @@ const Lobby: React.FC = () => {
     };
 
     fetchCodeBlocks();
-  }, [toast]);
+  }, [toastHook, resetSimulation]);
 
   if (loading) {
     return (

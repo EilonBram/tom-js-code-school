@@ -2,11 +2,12 @@
 import React, { useEffect, useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { useSocket } from '../context/SocketContext';
+import { useSocket, simulateJoinRoom, simulateLeaveRoom, simulateCodeChange } from '../context/SocketContext';
 import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useNavigate } from 'react-router-dom';
 
 interface CodeBlockProps {
   codeBlockData: {
@@ -18,59 +19,145 @@ interface CodeBlockProps {
 }
 
 const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
-  const { socket, isMentor, studentCount } = useSocket();
+  const { socket, isMentor, studentCount, socketId } = useSocket();
   const [code, setCode] = useState(codeBlockData.initialCode);
   const [solved, setSolved] = useState(false);
+  const [toastShown, setToastShown] = useState(false);
+  const SIMULATION_MODE = true;
+  const navigate = useNavigate();
   
   useEffect(() => {
-    if (!socket) return;
-    
-    // Join the room for this code block
-    socket.emit('join_room', codeBlockData.id);
-    
-    // Listen for code changes from other clients
-    socket.on('code_updated', (updatedCode: string) => {
-      setCode(updatedCode);
-      checkSolution(updatedCode);
-    });
-    
-    // Listen for mentor leaving
-    socket.on('mentor_left', () => {
-      toast.error("The mentor has left the session");
-      // Redirect to lobby
-      window.location.href = '/';
-    });
-    
-    // Clean up
-    return () => {
-      socket.off('code_updated');
-      socket.off('mentor_left');
-      socket.emit('leave_room', codeBlockData.id);
-    };
-  }, [socket, codeBlockData.id]);
+    if (SIMULATION_MODE) {
+      // Check if there's any saved code for this block
+      const savedCode = localStorage.getItem(`codeblock_${codeBlockData.id}`);
+      if (savedCode) {
+        setCode(savedCode);
+        checkSolution(savedCode, false); // Check solution but don't show toast
+      }
+      
+      // Join the room (simulation)
+      simulateJoinRoom(codeBlockData.id);
+      
+      // Listen for code changes from other clients
+      const handleCodeUpdate = (event: any) => {
+        if (event.detail.roomId === codeBlockData.id) {
+          setCode(event.detail.code);
+          checkSolution(event.detail.code, false); // Check solution but don't show toast
+        }
+      };
+      
+      // Listen for mentor leaving
+      const handleMentorLeft = () => {
+        if (!isMentor) {
+          // Clear all code and solved status for this block
+          localStorage.removeItem(`codeblock_${codeBlockData.id}`);
+          localStorage.removeItem(`codeblock_${codeBlockData.id}_solved`);
+          toast.error("The mentor has left the session");
+          navigate('/');
+        }
+      };
+      
+      window.addEventListener('code_updated', handleCodeUpdate);
+      window.addEventListener('mentor_left', handleMentorLeft);
+      
+      // Add a polling mechanism to check for code updates
+      const pollInterval = setInterval(() => {
+        const currentSavedCode = localStorage.getItem(`codeblock_${codeBlockData.id}`);
+        if (currentSavedCode && currentSavedCode !== code) {
+          setCode(currentSavedCode);
+          checkSolution(currentSavedCode, false); // Check solution but don't show toast
+        }
+      }, 1000); // Poll every second
+      
+      // Clean up
+      return () => {
+        window.removeEventListener('code_updated', handleCodeUpdate);
+        window.removeEventListener('mentor_left', handleMentorLeft);
+        clearInterval(pollInterval);
+        simulateLeaveRoom(codeBlockData.id);
+        
+        // Clear any toast when leaving the component
+        toast.dismiss();
+      };
+    } else if (socket) {
+      // Real socket implementation
+      // Join the room for this code block
+      socket.emit('join_room', codeBlockData.id);
+      
+      // Listen for code changes from other clients
+      socket.on('code_updated', (updatedCode: string) => {
+        setCode(updatedCode);
+        checkSolution(updatedCode, false); // Check solution but don't show toast
+      });
+      
+      // Listen for mentor leaving
+      socket.on('mentor_left', () => {
+        // Clear all code and solved status for this block
+        localStorage.removeItem(`codeblock_${codeBlockData.id}`);
+        localStorage.removeItem(`codeblock_${codeBlockData.id}_solved`);
+        toast.error("The mentor has left the session");
+        navigate('/');
+      });
+      
+      // Clean up
+      return () => {
+        socket.off('code_updated');
+        socket.off('mentor_left');
+        socket.emit('leave_room', codeBlockData.id);
+        
+        // Clear any toast when leaving the component
+        toast.dismiss();
+      };
+    }
+  }, [socket, codeBlockData.id, SIMULATION_MODE, isMentor, navigate]);
   
   const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newCode = e.target.value;
     setCode(newCode);
     
-    // Emit code change event
-    socket?.emit('code_change', {
-      room: codeBlockData.id,
-      code: newCode
-    });
-    
-    checkSolution(newCode);
+    if (SIMULATION_MODE) {
+      // Simulate code change event
+      simulateCodeChange(codeBlockData.id, newCode);
+      
+      // Also update localStorage directly to ensure it's properly saved
+      localStorage.setItem(`codeblock_${codeBlockData.id}`, newCode);
+    } else {
+      // Emit code change event to real socket
+      socket?.emit('code_change', {
+        room: codeBlockData.id,
+        code: newCode
+      });
+    }
   };
   
-  const checkSolution = (code: string) => {
+  const checkSolution = (codeToCheck: string, showToast: boolean = true) => {
     // Compare with the solution
-    if (code.trim() === codeBlockData.solution.trim()) {
+    const isCorrect = codeToCheck.trim() === codeBlockData.solution.trim();
+    
+    if (isCorrect) {
       setSolved(true);
-      toast.success("Congratulations! You've solved the code block!");
+      
+      // Only show toast if explicitly requested and it hasn't been shown yet
+      if (showToast && !toastShown) {
+        toast.success("Congratulations! You've solved the code block!");
+        setToastShown(true);
+        
+        // Save the solved state to localStorage
+        localStorage.setItem(`codeblock_${codeBlockData.id}_solved`, 'true');
+      }
     } else {
       setSolved(false);
     }
   };
+  
+  // Check for saved solved state on initial load
+  useEffect(() => {
+    const solvedState = localStorage.getItem(`codeblock_${codeBlockData.id}_solved`);
+    if (solvedState === 'true') {
+      setSolved(true);
+      setToastShown(true);
+    }
+  }, [codeBlockData.id]);
   
   return (
     <Card className="w-full max-w-4xl mx-auto shadow-lg">
@@ -98,7 +185,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ codeBlockData }) => {
                 value={code}
                 onChange={handleCodeChange}
               />
-              <Button onClick={() => checkSolution(code)}>Check Solution</Button>
+              <Button onClick={() => checkSolution(code, true)}>Check Solution</Button>
             </div>
           )}
           {solved && (
